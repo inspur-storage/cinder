@@ -134,20 +134,21 @@ class RestAPIExecutor(object):
 
     def send_rest_api(self, method, params=None, request_type='post'):
         attempts = 3
-        msge=''
+        msge = ''
         while attempts > 0:
             attempts -= 1
             try:
                 return self.send_api(method, params, request_type)
-            except exception.VolumeDriverException, e:
+            except exception.VolumeDriverException as e:
                 LOG.error(e)
                 msge = str(e)
                 self.refresh_token(force=True)
                 time.sleep(1)
-            except exception.VolumeBackendAPIException, e:
+            except exception.VolumeBackendAPIException as e:
                 msge = str(e)
                 break
-        msg = r'Error running RestAPI : /rest/%s ; Error Message: %s' %(method,msge)
+        msg = r'Error running RestAPI : /rest/%s ; Error Message: %s' % (
+            method, msge)
         LOG.error(msg)
         raise exception.VolumeDriverException(msg)
 
@@ -237,11 +238,13 @@ class AS13000Driver(san.SanISCSIDriver):
     1.0 - Initial driver
     1.1 - Fix nic bugs
     1.2 - Update the Rest_API
+    1.3 - add multipath support;
+          fix initialize_connction outtime problem
 
     """
 
     VENDOR = 'INSPUR'
-    VERSION = '1.2.0'
+    VERSION = '1.3.0'
     PROTOCOL = 'iSCSI'
 
     def __init__(self, *args, **kwargs):
@@ -263,7 +266,11 @@ class AS13000Driver(san.SanISCSIDriver):
     @inspur_driver_debug_trace
     def do_setup(self, context):
         # get the RestAPIExecutor
-        self._rest = RestAPIExecutor(self.hostname, self.port, self.username, self.password)
+        self._rest = RestAPIExecutor(
+            self.hostname,
+            self.port,
+            self.username,
+            self.password)
 
         # get tokens for Driver
         self._rest.logins()
@@ -272,7 +279,7 @@ class AS13000Driver(san.SanISCSIDriver):
         # get Available nodes in backend
         for node in self._get_cluster_status():
             if node.get('healthStatus') == 1:
-                self.nodes.append(node.get('name'))
+                self.nodes.append(node)
 
         # self._init_pool_list()
         self.pools = self.configuration.inspur_as13000_ipsan_pool
@@ -306,7 +313,8 @@ class AS13000Driver(san.SanISCSIDriver):
         for pool in self.pools:
             if pool not in pool_backend_names:
                 LOG.error('%s is not exist in backend storage.' % pool)
-                raise exception.InvalidInput(reason='%s is not exist in backend storage.' % pool)
+                raise exception.InvalidInput(
+                    reason='%s is not exist in backend storage.' % pool)
 
     def _check_meta_pool(self):
         if self.data_pool_type == 1:
@@ -320,12 +328,16 @@ class AS13000Driver(san.SanISCSIDriver):
         size = volume.size * 1024
         name = self._trans_name_down(volume.name)
         request_type = "post"
-        params = {"dataPool": pool, "name": name, "capacity": size,
-                  "dataPoolType": self.data_pool_type, "metaPool": self.meta_pool}
+        params = {
+            "dataPool": pool,
+            "name": name,
+            "capacity": size,
+            "dataPoolType": self.data_pool_type,
+            "metaPool": self.meta_pool}
         self._rest.send_rest_api(method=method, params=params,
                                  request_type=request_type)
         LOG.info('Create volume: volume name:%s, size: %s, pool: %s'
-                  % (name, size, pool))
+                 % (name, size, pool))
 
     @inspur_driver_debug_trace
     def create_volume_from_snapshot(self, volume, snapshot):
@@ -541,18 +553,24 @@ class AS13000Driver(san.SanISCSIDriver):
             # add host to target add lun to target
             if multipath:
                 node = self.nodes
-                nodes = ','.join(node)
-                target_name = ('target.inspur.%s-%s' % (connector['host'],
-                                                        str(random.randint(0, 99999999)).zfill(8)))
+                nodes = ','.join(node.get('name'))
+                target_name = (
+                    'target.inspur.%s-%s' %
+                    (connector['host'], str(
+                        random.randint(
+                            0, 99999999)).zfill(8)))
                 self._create_target(target_node=nodes,
                                     target_name=target_name)
             else:
                 # single node
                 preferred_node = self.nodes.pop(1)
                 self.nodes.append(preferred_node)
-                node = [preferred_node]
-                target_name = ('target.inspur.%s-%s' % (connector['host'],
-                                                        str(random.randint(0, 99999999)).zfill(8)))
+                node = [preferred_node.get('name')]
+                target_name = (
+                    'target.inspur.%s-%s' %
+                    (connector['host'], str(
+                        random.randint(
+                            0, 99999999)).zfill(8)))
                 self._create_target(target_node=node[0],
                                     target_name=target_name)
 
@@ -567,7 +585,7 @@ class AS13000Driver(san.SanISCSIDriver):
                                          chap_password)
 
         if multipath:
-            cluster = self._get_cluster_status()
+            cluster = self.nodes
             for node_back in cluster:
                 if node_back.get('name') in node:
                     portal.apend('%s:%s' % (node_back.get('ip'), '3260'))
@@ -581,8 +599,8 @@ class AS13000Driver(san.SanISCSIDriver):
             }
 
         else:
-            #single node
-            cluster = self._get_cluster_status()
+            # single node
+            cluster = self.nodes
             for node_back in cluster:
                 if node_back.get('name') == node[0]:
                     portal = '%s:%s' % (node_back.get('ip'), '3260')
@@ -606,68 +624,6 @@ class AS13000Driver(san.SanISCSIDriver):
         LOG.info('initialize_connection: %s' % datas)
         return datas
 
-    # @inspur_driver_debug_trace
-    # def initialize_connection2(self, volume, connector, **kwargs):
-    #     """1.check if the host exist in targets
-    #        2.1 if there is target that has the host,add the volume to the target
-    #        2.2 if not: create an target add host to host add volume to host
-    #        3 return the target info
-    #        """
-    #     host_ip = connector['ip']
-    #     portal = None
-    #     chap_enabled = self.configuration.as13000_chap_enabled
-    #
-    #     # Check if there host exist in targets
-    #     host_exist, target_name, node = self._get_target_from_conn(host_ip)
-    #     if host_exist:
-    #         # host exist just need add lun to the exist target
-    #         self._add_lun_to_target(target_name=target_name, volume=volume)
-    #
-    #     else:
-    #         # host doesn't exist create target in node,
-    #         # add host to target add lun to target
-    #         preferred_node = self.nodes.pop(1)
-    #         self.nodes.append(preferred_node)
-    #         node = preferred_node
-    #         target_name = ('target.inspur.%s-%s' % (connector['host'],
-    #                        str(random.randint(0, 99999999)).zfill(8)))
-    #         self._create_target(target_node=node,
-    #                             target_name=target_name)
-    #         self._add_host_to_target(host_ip=host_ip,
-    #                                  target_name=target_name)
-    #         self._add_lun_to_target(target_name=target_name, volume=volume)
-    #         if chap_enabled:
-    #             chap_username = self.configuration.chap_username
-    #             chap_password = self.configuration.chap_password
-    #             self._add_chap_to_target(target_name,
-    #                                      chap_username,
-    #                                      chap_password)
-    #
-    #     cluster = self._get_cluster_status()
-    #
-    #     for node_back in cluster:
-    #         if node_back.get('name') == node:
-    #             portal = '%s:%s' % (node_back.get('ip'), '3260')
-    #             break
-    #     lun_id = self._get_lun_id(volume, target_name)
-    #     connection_data = {
-    #         'target_discovered': True,
-    #         'target_lun': lun_id,
-    #         'volume_id': volume.id,
-    #         'target_portal': portal,
-    #         'target_iqn': target_name
-    #     }
-    #     if chap_enabled:
-    #         connection_data['auth_method'] = 'CHAP'
-    #         connection_data['auth_username'] = chap_username
-    #         connection_data['auth_password'] = chap_password
-    #     datas = {
-    #         'driver_volume_type': 'iscsi',
-    #         'data': connection_data
-    #     }
-    #     LOG.debug('initialize_connection: %s' % datas)
-    #     return datas
-
     @inspur_driver_debug_trace
     def terminate_connection(self, volume, connector, **kwargs):
         """delete lun from target,
@@ -686,7 +642,7 @@ class AS13000Driver(san.SanISCSIDriver):
     @inspur_driver_debug_trace
     def _get_pools_stats(self):
         # get /rest/block/pool
-        method = 'block/pool?type=2'  
+        method = 'block/pool?type=2'
         requests_type = 'get'
         pool_data = self._rest.send_rest_api(method=method,
                                              request_type=requests_type)
@@ -833,10 +789,10 @@ class AS13000Driver(san.SanISCSIDriver):
         """check if the volume exists in the backend"""
         pool = volume_utils.extract_host(volume.host, 'pool')
         volume_name = self._trans_name_down(volume.name)
-        attempts=3
-        while attempts>0:
+        attempts = 3
+        while attempts > 0:
             volumes = self._get_volumes(pool)
-            attempts -=1
+            attempts -= 1
             for vol in volumes:
                 if volume_name == vol.get('name'):
                     return True
@@ -891,7 +847,7 @@ class AS13000Driver(san.SanISCSIDriver):
         try:
             unit_of_used = re.findall(r'[A-Z]', capacity)
             unit_of_used = ''.join(unit_of_used)
-        except:
+        except BaseException:
             unit_of_used = ''
         capacity = capacity.replace(unit_of_used, '')
         capacity = float(capacity.replace(unit_of_used, ''))
