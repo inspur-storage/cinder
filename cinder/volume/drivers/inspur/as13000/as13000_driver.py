@@ -172,7 +172,6 @@ class RestAPIExecutor(object):
             self._token_pool.append(token)
 
         if request_type == 'post':
-
             req = requests.post(url,
                                 data=params,
                                 headers=header)
