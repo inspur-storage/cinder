@@ -340,8 +340,6 @@ class AS13000Driver(san.SanISCSIDriver):
 
     @inspur_driver_debug_trace
     def create_volume_from_snapshot(self, volume, snapshot):
-        # icfs-image-clone -create -image patent_image -pool pool_name [-snap snapname ]
-        #  -destpool destpoolname -dest_image dest_image
         if snapshot['volume_size'] > volume.size:
             msg = ("create_volume_from_snapshot: snapshot %(snapshot_name)s "
                    "size is %(snapshot_size)dGB and doesn't fit in target "
@@ -378,9 +376,6 @@ class AS13000Driver(san.SanISCSIDriver):
 
     @inspur_driver_debug_trace
     def create_cloned_volume(self, volume, src_vref):
-
-        # icfs-image-clone -create -image patent_image -pool pool_name [-snap snapname ]
-        #  -destpool destpoolname -dest_image dest_image
         if src_vref.size > volume.size:
             msg = ("create_cloned_volume: source volume %(src_vol)s "
                    "size is %(src_size)dGB and doesn't fit in target "
