@@ -660,28 +660,43 @@ class AS13000Driver(san.SanISCSIDriver):
                 pools.append(new_pool)
         return pools
 
+    # @inspur_driver_debug_trace
+    # def _get_target_from_conn(self, host_ip):
+    #
+    #     host_exist = False
+    #     target_name = None
+    #     node = None
+    #     # check if there host exist in targets
+    #     target_list = self._get_target_list()
+    #     for target in target_list:
+    #         name = target.get('name')
+    #         hosts = self._get_host_from_target(target_name=name)
+    #         for host in hosts:
+    #             if host.get('hostIp') == host_ip:
+    #                 target_name = name
+    #                 node = target.get('node')
+    #                 node = node.split(',')
+    #                 host_exist = True
+    #                 break  # Break from the second loop
+    #         if host_exist is True:
+    #             # Break from the first loop
+    #             break
+    #     return host_exist, target_name, node
+
     @inspur_driver_debug_trace
     def _get_target_from_conn(self, host_ip):
-
         host_exist = False
         target_name = None
         node = None
-        # check if there host exist in targets
         target_list = self._get_target_list()
         for target in target_list:
-            name = target.get('name')
-            hosts = self._get_host_from_target(target_name=name)
-            for host in hosts:
-                if host.get('hostIp') == host_ip:
-                    target_name = name
-                    node = target.get('node')
-                    node = node.split(',')
-                    host_exist = True
-                    break  # Break from the second loop
-            if host_exist is True:
-                # Break from the first loop
+            if host_ip in target['hostIp']:
+                host_exist = True
+                target_name = target['name']
+                node = target['node']
                 break
         return host_exist, target_name, node
+
 
     @inspur_driver_debug_trace
     def _get_target_list(self):
@@ -724,7 +739,7 @@ class AS13000Driver(san.SanISCSIDriver):
     @inspur_driver_debug_trace
     def _add_chap_to_target(self, target_name, chap_username, chap_password):
         """add CHAP to Target """
-        method = 'block/chap/chap/bond'
+        method = 'block/chap/bond'
         params = {'target': target_name,
                   'user': chap_username,
                   'password': chap_password}
