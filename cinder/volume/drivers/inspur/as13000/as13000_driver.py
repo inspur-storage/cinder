@@ -239,11 +239,12 @@ class AS13000Driver(san.SanISCSIDriver):
     1.2 - Update the Rest_API
     1.3 - add multipath support;
           fix initialize_connction outtime problem
+    1.3.1 modify the initialize_connection restAPI, reduce operating time
 
     """
 
     VENDOR = 'INSPUR'
-    VERSION = '1.3.0'
+    VERSION = '1.3.1'
     PROTOCOL = 'iSCSI'
 
     def __init__(self, *args, **kwargs):
@@ -260,16 +261,15 @@ class AS13000Driver(san.SanISCSIDriver):
         self.pools = []
         self.nodes = []
         self._token_time = 0
-        self._rest = None
-
-    @inspur_driver_debug_trace
-    def do_setup(self, context):
         # get the RestAPIExecutor
         self._rest = RestAPIExecutor(
             self.hostname,
             self.port,
             self.username,
             self.password)
+
+    @inspur_driver_debug_trace
+    def do_setup(self, context):
 
         # get tokens for Driver
         self._rest.logins()
@@ -347,7 +347,7 @@ class AS13000Driver(san.SanISCSIDriver):
                    {'snapshot_name': snapshot.name,
                     'snapshot_size': snapshot.volume_size,
                     'volume_name': volume.name,
-                    'volume_size': volume.volume_size})
+                    'volume_size': volume.size})
             LOG.error(msg)
             raise exception.InvalidInput(message=msg)
         source_vol_name = 'volume_%s' % snapshot.volume_id
@@ -537,17 +537,20 @@ class AS13000Driver(san.SanISCSIDriver):
         chap_enabled = self.configuration.as13000_chap_enabled
         multipath = connector.get("multipath", False)
         # Check if there host exist in targets
-        host_exist, target_name, node = self._get_target_from_conn(host_ip)
+        host_exist, target_name, node_of_target = self._get_target_from_conn(host_ip)
         if host_exist:
             # host exist just need add lun to the exist target
             self._add_lun_to_target(target_name=target_name, volume=volume)
 
         else:
-            # host doesn't exist create target in node,
-            # add host to target add lun to target
+            # host doesn't exist,
+            # create target in node,
+            # add host to target add lun to target.
             if multipath:
-                node = self.nodes
-                nodes = ','.join(node.get('name'))
+                #node = self.nodes
+                node_of_target=[node['name']
+                                 for node in self.nodes]
+                nodes = ','.join(node_of_target)
                 target_name = (
                     'target.inspur.%s-%s' %
                     (connector['host'], str(
@@ -557,46 +560,45 @@ class AS13000Driver(san.SanISCSIDriver):
                                     target_name=target_name)
             else:
                 # single node
-                preferred_node = self.nodes.pop(1)
+                preferred_node = self.nodes.pop(0)
                 self.nodes.append(preferred_node)
-                node = [preferred_node.get('name')]
+                node_of_target = [preferred_node.get('name')]
                 target_name = (
                     'target.inspur.%s-%s' %
                     (connector['host'], str(
                         random.randint(
                             0, 99999999)).zfill(8)))
-                self._create_target(target_node=node[0],
+                self._create_target(target_node=node_of_target[0],
                                     target_name=target_name)
 
             self._add_host_to_target(host_ip=host_ip,
                                      target_name=target_name)
             self._add_lun_to_target(target_name=target_name, volume=volume)
             if chap_enabled:
-                chap_username = self.configuration.chap_username
-                chap_password = self.configuration.chap_password
                 self._add_chap_to_target(target_name,
-                                         chap_username,
-                                         chap_password)
+                                         self.configuration.chap_username,
+                                         self.configuration.chap_password)
 
         if multipath:
+            portal = []
             cluster = self.nodes
             for node_back in cluster:
-                if node_back.get('name') in node:
-                    portal.apend('%s:%s' % (node_back.get('ip'), '3260'))
+                if node_back['name'] in node_of_target:
+                    portal.append('%s:%s' % (node_back.get('ip'), '3260'))
             lun_id = self._get_lun_id(volume, target_name)
             connection_data = {
                 'target_discovered': True,
                 'volume_id': volume.id,
-                'target_portal': portal,
-                'target_lun': [lun_id] * len(portal),
-                'target_iqn': [target_name] * len(portal)
+                'target_portals': portal,
+                'target_luns': [lun_id] * len(portal),
+                'target_iqns': [target_name] * len(portal)
             }
 
         else:
             # single node
             cluster = self.nodes
             for node_back in cluster:
-                if node_back.get('name') == node[0]:
+                if node_back.get('name') == node_of_target[0]:
                     portal = '%s:%s' % (node_back.get('ip'), '3260')
                     break
             lun_id = self._get_lun_id(volume, target_name)
@@ -609,8 +611,8 @@ class AS13000Driver(san.SanISCSIDriver):
             }
         if chap_enabled:
             connection_data['auth_method'] = 'CHAP'
-            connection_data['auth_username'] = chap_username
-            connection_data['auth_password'] = chap_password
+            connection_data['auth_username'] = self.configuration.chap_username
+            connection_data['auth_password'] = self.configuration.chap_password
         datas = {
             'driver_volume_type': 'iscsi',
             'data': connection_data
@@ -660,29 +662,6 @@ class AS13000Driver(san.SanISCSIDriver):
                 pools.append(new_pool)
         return pools
 
-    # @inspur_driver_debug_trace
-    # def _get_target_from_conn(self, host_ip):
-    #
-    #     host_exist = False
-    #     target_name = None
-    #     node = None
-    #     # check if there host exist in targets
-    #     target_list = self._get_target_list()
-    #     for target in target_list:
-    #         name = target.get('name')
-    #         hosts = self._get_host_from_target(target_name=name)
-    #         for host in hosts:
-    #             if host.get('hostIp') == host_ip:
-    #                 target_name = name
-    #                 node = target.get('node')
-    #                 node = node.split(',')
-    #                 host_exist = True
-    #                 break  # Break from the second loop
-    #         if host_exist is True:
-    #             # Break from the first loop
-    #             break
-    #     return host_exist, target_name, node
-
     @inspur_driver_debug_trace
     def _get_target_from_conn(self, host_ip):
         host_exist = False
@@ -697,11 +676,10 @@ class AS13000Driver(san.SanISCSIDriver):
                 break
         return host_exist, target_name, node
 
-
     @inspur_driver_debug_trace
     def _get_target_list(self):
         """get a list of all targets in backend"""
-        method = 'block/target'
+        method = 'block/target/detail'
         request_type = 'get'
         data = self._rest.send_rest_api(method=method,
                                         request_type=request_type)
@@ -739,7 +717,7 @@ class AS13000Driver(san.SanISCSIDriver):
     @inspur_driver_debug_trace
     def _add_chap_to_target(self, target_name, chap_username, chap_password):
         """add CHAP to Target """
-        method = 'block/chap/bond'
+        method = 'block/chap/chap/bond'
         params = {'target': target_name,
                   'user': chap_username,
                   'password': chap_password}
