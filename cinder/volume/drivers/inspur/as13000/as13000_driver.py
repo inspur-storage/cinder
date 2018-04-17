@@ -191,6 +191,13 @@ class RestAPIExecutor(object):
             msg = 'Unsupported request_type: %s' % request_type
             raise exception.VolumeBackendAPIException(msg)
 
+        if req.status_code != 200:
+            msg = ('Error code: %(code)s , API: %(api)s , Message: %(msg)s'
+                   % {'code': req.status_code,
+                      'api': req.url,
+                      'msg': req.text})
+            LOG.error(msg)
+            raise exception.NetworkException(msg)
         try:
             response = req.json()
             code = response.get('code')
@@ -235,16 +242,12 @@ class AS13000Driver(san.SanISCSIDriver):
     """AS13000 Volume Driver
     Version history:
     1.0 - Initial driver
-    1.1 - Fix nic bugs
-    1.2 - Update the Rest_API
-    1.3 - add multipath support;
-          fix initialize_connction outtime problem
-    1.3.1 modify the initialize_connection restAPI, reduce operating time
+
 
     """
 
     VENDOR = 'INSPUR'
-    VERSION = '1.3.1'
+    VERSION = '1.0.0'
     PROTOCOL = 'iSCSI'
 
     def __init__(self, *args, **kwargs):
@@ -537,7 +540,8 @@ class AS13000Driver(san.SanISCSIDriver):
         chap_enabled = self.configuration.as13000_chap_enabled
         multipath = connector.get("multipath", False)
         # Check if there host exist in targets
-        host_exist, target_name, node_of_target = self._get_target_from_conn(host_ip)
+        host_exist, target_name, node_of_target = self._get_target_from_conn(
+            host_ip)
         if host_exist:
             # host exist just need add lun to the exist target
             self._add_lun_to_target(target_name=target_name, volume=volume)
@@ -548,8 +552,8 @@ class AS13000Driver(san.SanISCSIDriver):
             # add host to target add lun to target.
             if multipath:
                 #node = self.nodes
-                node_of_target=[node['name']
-                                 for node in self.nodes]
+                node_of_target = [node['name']
+                                  for node in self.nodes]
                 nodes = ','.join(node_of_target)
                 target_name = (
                     'target.inspur.%s-%s' %
@@ -651,7 +655,7 @@ class AS13000Driver(san.SanISCSIDriver):
                 used_capacity = pool.get('usedCapacity')
                 used_capacity_gb = self._unit_convert(used_capacity)
                 free_capacity_gb = total_capacity_gb - used_capacity_gb
-                new_pool = {
+                pool_info = {
                     'pool_name': pool.get('name'),
                     'pool_id': pool.get('ID'),
                     'total_capacity_gb': total_capacity_gb,
@@ -659,7 +663,7 @@ class AS13000Driver(san.SanISCSIDriver):
                     'thin_provisioning_support': True,
                     'thick_provisioning_support': False,
                 }
-                pools.append(new_pool)
+                pools.append(pool_info)
         return pools
 
     @inspur_driver_debug_trace
@@ -717,7 +721,7 @@ class AS13000Driver(san.SanISCSIDriver):
     @inspur_driver_debug_trace
     def _add_chap_to_target(self, target_name, chap_username, chap_password):
         """add CHAP to Target """
-        method = 'block/chap/chap/bond'
+        method = 'block/chap/bond'
         params = {'target': target_name,
                   'user': chap_username,
                   'password': chap_password}
@@ -783,7 +787,7 @@ class AS13000Driver(san.SanISCSIDriver):
             for vol in volumes:
                 if volume_name == vol.get('name'):
                     return True
-            time.sleep(5)
+            time.sleep(1)
         return False
 
     @inspur_driver_debug_trace
@@ -817,6 +821,7 @@ class AS13000Driver(san.SanISCSIDriver):
             lun_name = mappinglvm.replace(r'%s/' % pool, '')
             if lun_name == volume_name:
                 lun_id = lun.get('id')
+                break
         return lun_id
 
     @inspur_driver_debug_trace
