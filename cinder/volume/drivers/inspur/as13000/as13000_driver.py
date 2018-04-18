@@ -235,16 +235,11 @@ class AS13000Driver(san.SanISCSIDriver):
     """AS13000 Volume Driver
     Version history:
     1.0 - Initial driver
-    1.1 - Fix nic bugs
-    1.2 - Update the Rest_API
-    1.3 - add multipath support;
-          fix initialize_connction outtime problem
-    1.3.1 modify the initialize_connection restAPI, reduce operating time
 
     """
 
     VENDOR = 'INSPUR'
-    VERSION = '1.3.1'
+    VERSION = '1.0.0'
     PROTOCOL = 'iSCSI'
 
     def __init__(self, *args, **kwargs):
@@ -537,7 +532,8 @@ class AS13000Driver(san.SanISCSIDriver):
         chap_enabled = self.configuration.as13000_chap_enabled
         multipath = connector.get("multipath", False)
         # Check if there host exist in targets
-        host_exist, target_name, node_of_target = self._get_target_from_conn(host_ip)
+        host_exist, target_name, node_of_target = self._get_target_from_conn(
+            host_ip)
         if host_exist:
             # host exist just need add lun to the exist target
             self._add_lun_to_target(target_name=target_name, volume=volume)
@@ -548,8 +544,8 @@ class AS13000Driver(san.SanISCSIDriver):
             # add host to target add lun to target.
             if multipath:
                 #node = self.nodes
-                node_of_target=[node['name']
-                                 for node in self.nodes]
+                node_of_target = [node['name']
+                                  for node in self.nodes]
                 nodes = ','.join(node_of_target)
                 target_name = (
                     'target.inspur.%s-%s' %
@@ -624,9 +620,30 @@ class AS13000Driver(san.SanISCSIDriver):
     def terminate_connection(self, volume, connector, **kwargs):
         """delete lun from target,
            if target has no any lun, driver will delete the target"""
-        host_ip = connector['ip']
-        host, target_name, node_name = self._get_target_from_conn(host_ip)
-        lun_id = self._get_lun_id(volume, target_name)
+        volume_name = self._trans_name_down(volume.name)
+        if connector['ip']:
+            host_ip = connector['ip']
+            # host, target_name, node_name = self._get_target_from_conn(host_ip)
+            # lun_id = self._get_lun_id(volume, target_name)
+            target_list = self._get_target_list()
+            for target in target_list:
+                if host_ip in target['hostIp']:
+                    for lun in target_list['lun']:
+                        if volume_name == lun['lvm']:
+                            lun_id = lun['lunID']
+                            break
+                    if lun_id is not None:
+                        break
+        else:
+            target_list = self._get_target_list()
+            for target in target_list:
+                for lun in target_list['lun']:
+                    if volume_name == lun['lvm']:
+                        target_name = target['name']
+                        lun_id = lun['lunID']
+                        break
+                if lun_id is not None:
+                    break
         self._delete_lun_from_target(target_name=target_name,
                                      lun_id=lun_id)
         luns = self._get_lun_list(target_name)
