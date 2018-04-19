@@ -628,7 +628,7 @@ class AS13000Driver(san.SanISCSIDriver):
             target_list = self._get_target_list()
             for target in target_list:
                 if host_ip in target['hostIp']:
-                    for lun in target_list['lun']:
+                    for lun in target['lun']:
                         if volume_name == lun['lvm']:
                             lun_id = lun['lunID']
                             break
@@ -637,7 +637,7 @@ class AS13000Driver(san.SanISCSIDriver):
         else:
             target_list = self._get_target_list()
             for target in target_list:
-                for lun in target_list['lun']:
+                for lun in target['lun']:
                     if volume_name == lun['lvm']:
                         target_name = target['name']
                         lun_id = lun['lunID']
