@@ -62,270 +62,270 @@ class FakeResponse(object):
         pass
 
 
-# @ddt.ddt
-# class RestAPIExecutorTestCase(test.TestCase):
-#     def setUp(self):
-#         self.rest_api = as13000_driver.RestAPIExecutor(
-#             test_config.san_ip,
-#             test_config.san_api_port,
-#             test_config.san_login,
-#             test_config.san_password)
-#         super(RestAPIExecutorTestCase, self).setUp()
-#
-#     def test_logins(self):
-#         mock_login = self.mock_object(self.rest_api, 'login',
-#                                       mock.Mock(return_value='fake_token'))
-#         self.rest_api.logins()
-#         mock_login.assert_called_once()
-#
-#     def test_login(self):
-#         fake_response = {
-#             'token': 'fake_token',
-#             'expireTime': '7200',
-#             'type': 0}
-#         mock_sra = self.mock_object(self.rest_api, 'send_rest_api',
-#                                     mock.Mock(return_value=fake_response))
-#         result = self.rest_api.login()
-#
-#         self.assertEqual('fake_token', result)
-#
-#         login_params = {'name': test_config.san_login,
-#                         'password': test_config.san_password}
-#         mock_sra.assert_called_once_with(method='security/token',
-#                                          params=login_params,
-#                                          request_type='post')
-#
-#     def test_logout(self):
-#         mock_sra = self.mock_object(self.rest_api, 'send_rest_api',
-#                                     mock.Mock(return_value=None))
-#         self.rest_api.logout()
-#         mock_sra.assert_called_once_with(
-#             method='security/token', request_type='delete')
-#
-#     @ddt.data(True, False)
-#     def test_refresh_token(self, force):
-#         mock_login = self.mock_object(self.rest_api, 'login',
-#                                       mock.Mock(return_value='fake_token'))
-#         mock_logout = self.mock_object(self.rest_api, 'logout',
-#                                        mock.Mock())
-#         self.rest_api.refresh_token(force)
-#         if force is not True:
-#             mock_logout.assert_called_once_with()
-#         mock_login.assert_called_once_with()
-#
-#     def test_send_rest_api(self):
-#         expected = {'value': 'abc'}
-#         mock_sa = self.mock_object(self.rest_api, 'send_api',
-#                                    mock.Mock(return_value=expected))
-#         result = self.rest_api.send_rest_api(
-#             method='fake_method',
-#             params='fake_params',
-#             request_type='fake_type')
-#         self.assertEqual(expected, result)
-#         mock_sa.assert_called_once_with(
-#             'fake_method',
-#             'fake_params',
-#             'fake_type')
-#
-#     def test_send_rest_api_retry(self):
-#         expected = {'value': 'abc'}
-#         mock_sa = self.mock_object(
-#             self.rest_api,
-#             'send_api',
-#             mock.Mock(side_effect=(exception.VolumeDriverException, expected)))
-#         # mock.Mock(side_effect=exception.NetworkException))
-#         mock_rt = self.mock_object(self.rest_api, 'refresh_token', mock.Mock())
-#         result = self.rest_api.send_rest_api(
-#             method='fake_method',
-#             params='fake_params',
-#             request_type='fake_type'
-#         )
-#         self.assertEqual(expected, result)
-#
-#         mock_sa.assert_called_with(
-#             'fake_method',
-#             'fake_params',
-#             'fake_type')
-#         mock_rt.assert_called_with(force=True)
-#
-#     def test_send_rest_api_3times_fail(self):
-#         mock_sa = self.mock_object(
-#             self.rest_api, 'send_api', mock.Mock(
-#                 side_effect=(exception.VolumeDriverException)))
-#         mock_rt = self.mock_object(self.rest_api, 'refresh_token', mock.Mock())
-#         self.assertRaises(
-#             exception.VolumeDriverException,
-#             self.rest_api.send_rest_api,
-#             method='fake_method',
-#             params='fake_params',
-#             request_type='fake_type')
-#         mock_sa.assert_called_with('fake_method',
-#                                    'fake_params',
-#                                    'fake_type')
-#         mock_rt.assert_called_with(force=True)
-#
-#     def test_send_rest_api_backend_error_fail(self):
-#         mock_sa = self.mock_object(self.rest_api, 'send_api', mock.Mock(
-#             side_effect=(exception.VolumeBackendAPIException(
-#                 'fake_error_message'))))
-#         mock_rt = self.mock_object(self.rest_api, 'refresh_token')
-#         self.assertRaises(
-#             exception.VolumeDriverException,
-#             self.rest_api.send_rest_api,
-#             method='fake_method',
-#             params='fake_params',
-#             request_type='fake_type')
-#         mock_sa.assert_called_with('fake_method',
-#                                    'fake_params',
-#                                    'fake_type')
-#         mock_rt.assert_not_called()
-#
-#     @ddt.data(
-#         {'method': 'fake_method', 'request_type': 'post', 'params':
-#             {'fake_param': 'fake_value'}},
-#         {'method': 'fake_method', 'request_type': 'get', 'params':
-#             {'fake_param': 'fake_value'}},
-#         {'method': 'fake_method', 'request_type': 'delete', 'params':
-#             {'fake_param': 'fake_value'}},
-#         {'method': 'fake_method', 'request_type': 'put', 'params':
-#             {'fake_param': 'fake_value'}}, )
-#     @ddt.unpack
-#     def test_send_api(self, method, params, request_type):
-#         self.rest_api._token_pool = ['fake_token']
-#         if request_type in ('post', 'delete', 'put'):
-#             fake_output = {'code': 0, 'message': 'success'}
-#         elif request_type == 'get':
-#             fake_output = {'code': 0, 'data': 'fake_date'}
-#         mock_request = self.mock_object(
-#             requests, request_type, mock.Mock(
-#                 return_value=FakeResponse(
-#                     200, fake_output)))
-#         self.rest_api.send_api(
-#             method,
-#             params=params,
-#             request_type=request_type)
-#         mock_request.assert_called_once_with(
-#             'http://%s:%s/rest/%s' %
-#             (test_config.san_ip,
-#              test_config.san_api_port,
-#              method),
-#             data=json.dumps(params),
-#             headers={'X-Auth-Token': 'fake_token'})
-#
-#     @ddt.data({'method': r'security/token',
-#                'params': {'name': test_config.san_login,
-#                           'password': test_config.san_password},
-#                'request_type': 'post'},
-#               {'method': r'security/token',
-#                'params': '',
-#                'request_type': 'delete'})
-#     @ddt.unpack
-#     def test_send_api_access_success(self, method, params, request_type):
-#         if request_type == 'post':
-#             fake_value = {'code': 0, 'data': {
-#                 'token': 'fake_token',
-#                 'expireTime': '7200',
-#                 'type': 0}}
-#             mock_requests = self.mock_object(
-#                 requests, 'post', mock.Mock(
-#                     return_value=FakeResponse(
-#                         200, fake_value)))
-#             result = self.rest_api.send_api(method, params, request_type)
-#             self.assertEqual(fake_value['data'], result)
-#             mock_requests.assert_called_once_with(
-#                 'http://%s:%s/rest/%s' %
-#                 (test_config.san_ip,
-#                  test_config.san_api_port,
-#                  method),
-#                 data=json.dumps(params),
-#                 headers=None)
-#         if request_type == 'delete':
-#             fake_value = {'code': 0, 'message': 'Success!'}
-#             self.rest_api._token_pool = ['fake_token']
-#             mock_requests = self.mock_object(
-#                 requests, 'delete', mock.Mock(
-#                     return_value=FakeResponse(
-#                         200, fake_value)))
-#             self.rest_api.send_api(method, params, request_type)
-#             mock_requests.assert_called_once_with(
-#                 'http://%s:%s/rest/%s' %
-#                 (test_config.san_ip,
-#                  test_config.san_api_port,
-#                  method),
-#                 data=json.dumps(''),
-#                 headers={'X-Auth-Token': 'fake_token'})
-#
-#     def test_send_api_wrong_access_fail(self):
-#         req_params = {'method': r'security/token',
-#                       'params': {'name': test_config.san_login,
-#                                  'password': 'fake_password'},
-#                       'request_type': 'post'}
-#         fake_value = {'message': ' User name or password error.', 'code': 400}
-#         mock_request = self.mock_object(
-#             requests, 'post', mock.Mock(
-#                 return_value=FakeResponse(
-#                     200, fake_value)))
-#         self.assertRaises(
-#             exception.VolumeBackendAPIException,
-#             self.rest_api.send_api,
-#             method=req_params['method'],
-#             params=req_params['params'],
-#             request_type=req_params['request_type'])
-#         mock_request.assert_called_once_with(
-#             'http://%s:%s/rest/%s' %
-#             (test_config.san_ip,
-#              test_config.san_api_port,
-#              req_params['method']),
-#             data=json.dumps(
-#                 req_params['params']),
-#             headers=None)
-#
-#     def test_send_api_token_overtime_fail(self):
-#         self.rest_api._token_pool = ['fake_token']
-#         fake_value = {'method': 'fake_url',
-#                       'params': 'fake_params',
-#                       'reuest_type': 'post'}
-#         fake_out_put = {'message': 'Unauthorized access!', 'code': 301}
-#         mock_requests = self.mock_object(
-#             requests, 'post', mock.Mock(
-#                 return_value=FakeResponse(
-#                     200, fake_out_put)))
-#         self.assertRaises(exception.VolumeDriverException,
-#                           self.rest_api.send_api,
-#                           method='fake_url',
-#                           params='fake_params',
-#                           request_type='post')
-#         mock_requests.assert_called_once_with(
-#             'http://%s:%s/rest/%s' %
-#             (test_config.san_ip,
-#              test_config.san_api_port,
-#              fake_value['method']),
-#             data=json.dumps('fake_params'),
-#             headers={
-#                 'X-Auth-Token': 'fake_token'})
-#
-#     def test_send_api_fail(self):
-#         self.rest_api._token_pool = ['fake_token']
-#         fake_output = {'code': 'fake_code', 'message': 'fake_message'}
-#         mock_request = self.mock_object(
-#             requests, 'post', mock.Mock(
-#                 return_value=FakeResponse(
-#                     200, fake_output)))
-#         self.assertRaises(
-#             exception.VolumeBackendAPIException,
-#             self.rest_api.send_api,
-#             method='fake_method',
-#             params='fake_params',
-#             request_type='post')
-#         mock_request.assert_called_once_with(
-#             'http://%s:%s/rest/%s' %
-#             (test_config.san_ip,
-#              test_config.san_api_port,
-#              'fake_method'),
-#             data=json.dumps('fake_params'),
-#             headers={'X-Auth-Token': 'fake_token'}
-#         )
-#
+@ddt.ddt
+class RestAPIExecutorTestCase(test.TestCase):
+    def setUp(self):
+        self.rest_api = as13000_driver.RestAPIExecutor(
+            test_config.san_ip,
+            test_config.san_api_port,
+            test_config.san_login,
+            test_config.san_password)
+        super(RestAPIExecutorTestCase, self).setUp()
+
+    def test_logins(self):
+        mock_login = self.mock_object(self.rest_api, 'login',
+                                      mock.Mock(return_value='fake_token'))
+        self.rest_api.logins()
+        mock_login.assert_called_once()
+
+    def test_login(self):
+        fake_response = {
+            'token': 'fake_token',
+            'expireTime': '7200',
+            'type': 0}
+        mock_sra = self.mock_object(self.rest_api, 'send_rest_api',
+                                    mock.Mock(return_value=fake_response))
+        result = self.rest_api.login()
+
+        self.assertEqual('fake_token', result)
+
+        login_params = {'name': test_config.san_login,
+                        'password': test_config.san_password}
+        mock_sra.assert_called_once_with(method='security/token',
+                                         params=login_params,
+                                         request_type='post')
+
+    def test_logout(self):
+        mock_sra = self.mock_object(self.rest_api, 'send_rest_api',
+                                    mock.Mock(return_value=None))
+        self.rest_api.logout()
+        mock_sra.assert_called_once_with(
+            method='security/token', request_type='delete')
+
+    @ddt.data(True, False)
+    def test_refresh_token(self, force):
+        mock_login = self.mock_object(self.rest_api, 'login',
+                                      mock.Mock(return_value='fake_token'))
+        mock_logout = self.mock_object(self.rest_api, 'logout',
+                                       mock.Mock())
+        self.rest_api.refresh_token(force)
+        if force is not True:
+            mock_logout.assert_called_once_with()
+        mock_login.assert_called_once_with()
+
+    def test_send_rest_api(self):
+        expected = {'value': 'abc'}
+        mock_sa = self.mock_object(self.rest_api, 'send_api',
+                                   mock.Mock(return_value=expected))
+        result = self.rest_api.send_rest_api(
+            method='fake_method',
+            params='fake_params',
+            request_type='fake_type')
+        self.assertEqual(expected, result)
+        mock_sa.assert_called_once_with(
+            'fake_method',
+            'fake_params',
+            'fake_type')
+
+    def test_send_rest_api_retry(self):
+        expected = {'value': 'abc'}
+        mock_sa = self.mock_object(
+            self.rest_api,
+            'send_api',
+            mock.Mock(side_effect=(exception.VolumeDriverException, expected)))
+        # mock.Mock(side_effect=exception.NetworkException))
+        mock_rt = self.mock_object(self.rest_api, 'refresh_token', mock.Mock())
+        result = self.rest_api.send_rest_api(
+            method='fake_method',
+            params='fake_params',
+            request_type='fake_type'
+        )
+        self.assertEqual(expected, result)
+
+        mock_sa.assert_called_with(
+            'fake_method',
+            'fake_params',
+            'fake_type')
+        mock_rt.assert_called_with(force=True)
+
+    def test_send_rest_api_3times_fail(self):
+        mock_sa = self.mock_object(
+            self.rest_api, 'send_api', mock.Mock(
+                side_effect=(exception.VolumeDriverException)))
+        mock_rt = self.mock_object(self.rest_api, 'refresh_token', mock.Mock())
+        self.assertRaises(
+            exception.VolumeDriverException,
+            self.rest_api.send_rest_api,
+            method='fake_method',
+            params='fake_params',
+            request_type='fake_type')
+        mock_sa.assert_called_with('fake_method',
+                                   'fake_params',
+                                   'fake_type')
+        mock_rt.assert_called_with(force=True)
+
+    def test_send_rest_api_backend_error_fail(self):
+        mock_sa = self.mock_object(self.rest_api, 'send_api', mock.Mock(
+            side_effect=(exception.VolumeBackendAPIException(
+                'fake_error_message'))))
+        mock_rt = self.mock_object(self.rest_api, 'refresh_token')
+        self.assertRaises(
+            exception.VolumeDriverException,
+            self.rest_api.send_rest_api,
+            method='fake_method',
+            params='fake_params',
+            request_type='fake_type')
+        mock_sa.assert_called_with('fake_method',
+                                   'fake_params',
+                                   'fake_type')
+        mock_rt.assert_not_called()
+
+    @ddt.data(
+        {'method': 'fake_method', 'request_type': 'post', 'params':
+            {'fake_param': 'fake_value'}},
+        {'method': 'fake_method', 'request_type': 'get', 'params':
+            {'fake_param': 'fake_value'}},
+        {'method': 'fake_method', 'request_type': 'delete', 'params':
+            {'fake_param': 'fake_value'}},
+        {'method': 'fake_method', 'request_type': 'put', 'params':
+            {'fake_param': 'fake_value'}}, )
+    @ddt.unpack
+    def test_send_api(self, method, params, request_type):
+        self.rest_api._token_pool = ['fake_token']
+        if request_type in ('post', 'delete', 'put'):
+            fake_output = {'code': 0, 'message': 'success'}
+        elif request_type == 'get':
+            fake_output = {'code': 0, 'data': 'fake_date'}
+        mock_request = self.mock_object(
+            requests, request_type, mock.Mock(
+                return_value=FakeResponse(
+                    200, fake_output)))
+        self.rest_api.send_api(
+            method,
+            params=params,
+            request_type=request_type)
+        mock_request.assert_called_once_with(
+            'http://%s:%s/rest/%s' %
+            (test_config.san_ip,
+             test_config.san_api_port,
+             method),
+            data=json.dumps(params),
+            headers={'X-Auth-Token': 'fake_token'})
+
+    @ddt.data({'method': r'security/token',
+               'params': {'name': test_config.san_login,
+                          'password': test_config.san_password},
+               'request_type': 'post'},
+              {'method': r'security/token',
+               'params': '',
+               'request_type': 'delete'})
+    @ddt.unpack
+    def test_send_api_access_success(self, method, params, request_type):
+        if request_type == 'post':
+            fake_value = {'code': 0, 'data': {
+                'token': 'fake_token',
+                'expireTime': '7200',
+                'type': 0}}
+            mock_requests = self.mock_object(
+                requests, 'post', mock.Mock(
+                    return_value=FakeResponse(
+                        200, fake_value)))
+            result = self.rest_api.send_api(method, params, request_type)
+            self.assertEqual(fake_value['data'], result)
+            mock_requests.assert_called_once_with(
+                'http://%s:%s/rest/%s' %
+                (test_config.san_ip,
+                 test_config.san_api_port,
+                 method),
+                data=json.dumps(params),
+                headers=None)
+        if request_type == 'delete':
+            fake_value = {'code': 0, 'message': 'Success!'}
+            self.rest_api._token_pool = ['fake_token']
+            mock_requests = self.mock_object(
+                requests, 'delete', mock.Mock(
+                    return_value=FakeResponse(
+                        200, fake_value)))
+            self.rest_api.send_api(method, params, request_type)
+            mock_requests.assert_called_once_with(
+                'http://%s:%s/rest/%s' %
+                (test_config.san_ip,
+                 test_config.san_api_port,
+                 method),
+                data=json.dumps(''),
+                headers={'X-Auth-Token': 'fake_token'})
+
+    def test_send_api_wrong_access_fail(self):
+        req_params = {'method': r'security/token',
+                      'params': {'name': test_config.san_login,
+                                 'password': 'fake_password'},
+                      'request_type': 'post'}
+        fake_value = {'message': ' User name or password error.', 'code': 400}
+        mock_request = self.mock_object(
+            requests, 'post', mock.Mock(
+                return_value=FakeResponse(
+                    200, fake_value)))
+        self.assertRaises(
+            exception.VolumeBackendAPIException,
+            self.rest_api.send_api,
+            method=req_params['method'],
+            params=req_params['params'],
+            request_type=req_params['request_type'])
+        mock_request.assert_called_once_with(
+            'http://%s:%s/rest/%s' %
+            (test_config.san_ip,
+             test_config.san_api_port,
+             req_params['method']),
+            data=json.dumps(
+                req_params['params']),
+            headers=None)
+
+    def test_send_api_token_overtime_fail(self):
+        self.rest_api._token_pool = ['fake_token']
+        fake_value = {'method': 'fake_url',
+                      'params': 'fake_params',
+                      'reuest_type': 'post'}
+        fake_out_put = {'message': 'Unauthorized access!', 'code': 301}
+        mock_requests = self.mock_object(
+            requests, 'post', mock.Mock(
+                return_value=FakeResponse(
+                    200, fake_out_put)))
+        self.assertRaises(exception.VolumeDriverException,
+                          self.rest_api.send_api,
+                          method='fake_url',
+                          params='fake_params',
+                          request_type='post')
+        mock_requests.assert_called_once_with(
+            'http://%s:%s/rest/%s' %
+            (test_config.san_ip,
+             test_config.san_api_port,
+             fake_value['method']),
+            data=json.dumps('fake_params'),
+            headers={
+                'X-Auth-Token': 'fake_token'})
+
+    def test_send_api_fail(self):
+        self.rest_api._token_pool = ['fake_token']
+        fake_output = {'code': 'fake_code', 'message': 'fake_message'}
+        mock_request = self.mock_object(
+            requests, 'post', mock.Mock(
+                return_value=FakeResponse(
+                    200, fake_output)))
+        self.assertRaises(
+            exception.VolumeBackendAPIException,
+            self.rest_api.send_api,
+            method='fake_method',
+            params='fake_params',
+            request_type='post')
+        mock_request.assert_called_once_with(
+            'http://%s:%s/rest/%s' %
+            (test_config.san_ip,
+             test_config.san_api_port,
+             'fake_method'),
+            data=json.dumps('fake_params'),
+            headers={'X-Auth-Token': 'fake_token'}
+        )
+
 
 @ddt.ddt
 class AS13000DriverTestCase(test.TestCase):
@@ -811,18 +811,20 @@ class AS13000DriverTestCase(test.TestCase):
 
         mock_gli.assert_called_once()
 
-    @ddt.data(True,False)
-    def test_terminate_connection(self,delete_target):
+    @ddt.data(True, False)
+    def test_terminate_connection(self, delete_target):
         volume = fake_volume.fake_volume_obj(self._ctxt, host='fakehost')
         connector = {'multipath': False,
                      'ip': 'fake_ip',
                      'host': 'fake_host'}
-        mock_gtfc = self.mock_object(
-            self.as13000_san, '_get_target_from_conn', mock.Mock(
-                return_value=('fake_value', 'target_name', 'fake_node')))
-        mock_gli = self.mock_object(self.as13000_san,
-                                    '_get_lun_id',
-                                    mock.Mock(return_value='fake_id'))
+        mock_tnd = self.mock_object(self.as13000_san, '_trans_name_down',
+                                    mock.Mock(return_value='fake_volume'))
+        fake_target_list = [{'hostIp': ['fake_ip'],
+                             'name': 'target_name',
+                             'lun': [
+                                 {'lvm': 'fake_volume', 'lunID': 'fake_id'}]}]
+        mock_gtl = self.mock_object(self.as13000_san, '_get_target_list',
+                                    mock.Mock(return_value=fake_target_list))
         mock_dlft = self.mock_object(self.as13000_san,
                                      '_delete_lun_from_target',
                                      mock.Mock())
@@ -831,12 +833,44 @@ class AS13000DriverTestCase(test.TestCase):
                                         mock.Mock(return_value=[]))
         else:
             mock_gll = self.mock_object(self.as13000_san, '_get_lun_list',
-                                        mock.Mock(return_value=[1,2]))
-        mock_dt = self.mock_object(self.as13000_san,'_delete_target',
+                                        mock.Mock(return_value=[1, 2]))
+        mock_dt = self.mock_object(self.as13000_san, '_delete_target',
                                    mock.Mock())
-        self.as13000_san.terminate_connection(volume,connector)
-        mock_gtfc.assert_called_once_with('fake_ip')
-        mock_gli.assert_called_once_with(volume,'target_name')
+        self.as13000_san.terminate_connection(volume, connector)
+        mock_tnd.assert_called_once_with(volume.name)
+        mock_gtl.assert_called_once()
+        mock_dlft.assert_called_once_with(lun_id='fake_id',
+                                          target_name='target_name')
+        mock_gll.assert_called_once_with('target_name')
+        if delete_target:
+            mock_dt.assert_called_once_with('target_name')
+        else:
+            mock_dt.assert_not_called()
+    @ddt.data(True, False)
+    def test_terminate_connection_force(self, delete_target):
+        volume = fake_volume.fake_volume_obj(self._ctxt, host='fakehost')
+        connector = {}
+        mock_tnd = self.mock_object(self.as13000_san,'_trans_name_down',
+                                    mock.Mock(return_value='fake_volume'))
+        fake_target_list=[{'hostIp':['fake_hostIp'],
+                           'name':'target_name',
+                           'lun':[{'lvm':'fake_volume','lunID':'fake_id'}]}]
+        mock_gtl = self.mock_object(self.as13000_san,'_get_target_list',
+                                    mock.Mock(return_value=fake_target_list))
+        mock_dlft = self.mock_object(self.as13000_san,
+                                     '_delete_lun_from_target',
+                                     mock.Mock())
+        if delete_target:
+            mock_gll = self.mock_object(self.as13000_san, '_get_lun_list',
+                                        mock.Mock(return_value=[]))
+        else:
+            mock_gll = self.mock_object(self.as13000_san, '_get_lun_list',
+                                        mock.Mock(return_value=[1, 2]))
+        mock_dt = self.mock_object(self.as13000_san, '_delete_target',
+                                   mock.Mock())
+        self.as13000_san.terminate_connection(volume, connector)
+        mock_tnd.assert_called_once_with(volume.name)
+        mock_gtl.assert_called_once()
         mock_dlft.assert_called_once_with(lun_id='fake_id',
                                           target_name='target_name')
         mock_gll.assert_called_once_with('target_name')
@@ -846,8 +880,267 @@ class AS13000DriverTestCase(test.TestCase):
             mock_dt.assert_not_called()
 
     def test__get_pools_stats(self):
-        pool_date = {}
+        pool_date = [{'ID': 'fake_id',
+                      'name': 'fake_name',
+                      'totalCapacity': '2t',
+                      'usedCapacity': '300g'}]
+        self.as13000_san.pools = ['fake_name']
         mock_rest = self.mock_object(as13000_driver.RestAPIExecutor,
                                      'send_rest_api',
                                      mock.Mock(return_value=pool_date))
+        mock_uc = self.mock_object(self.as13000_san, '_unit_convert',
+                                   mock.Mock(side_effect=(2000, 300)))
+        pool_info = {
+            'pool_name': 'fake_name',
+            'pool_id': 'fake_id',
+            'total_capacity_gb': 2000,
+            'free_capacity_gb': 1700,
+            'thin_provisioning_support': True,
+            'thick_provisioning_support': False,
+        }
+        resulet_pools = self.as13000_san._get_pools_stats()
+        expect_pools = [pool_info]
+        self.assertEqual(expect_pools, resulet_pools)
+        mock_rest.assert_called_once_with(method='block/pool?type=2',
+                                          request_type='get')
+        mock_uc.assert_called()
 
+    @ddt.data('fake_ip3', 'fake_ip5')
+    def test__get_target_from_conn(self, host_ip):
+        target_list = [{'hostIp': ['fake_ip1', 'fake_ip2'],
+                        'name':'fake_target_1',
+                        'node':['fake_node1', 'fake_node2']},
+                       {'hostIp': ['fake_ip3', 'fake_ip4'],
+                        'name': 'fake_target_2',
+                        'node': ['fake_node4', 'fake_node3']}
+                       ]
+        mock_gtl = self.mock_object(self.as13000_san,
+                                    '_get_target_list',
+                                    mock.Mock(return_value=target_list))
+        host_exist, target_name, node = (
+            self.as13000_san._get_target_from_conn(host_ip))
+        if host_ip is 'fake_ip3':
+            self.assertEqual(
+                (True, 'fake_target_2', [
+                    'fake_node4', 'fake_node3']), (host_exist, target_name, node))
+        else:
+            self.assertEqual(
+                (False, None, None),
+                (host_exist, target_name, node))
+
+    def test__get_target_list(self):
+        mock_rest = self.mock_object(as13000_driver.RestAPIExecutor,
+                                     'send_rest_api',
+                                     mock.Mock(return_value='fake_date'))
+        method = 'block/target/detail'
+        request_type = 'get'
+        result = self.as13000_san._get_target_list()
+        self.assertEqual('fake_date', result)
+        mock_rest.assert_called_once_with(method=method,
+                                          request_type=request_type)
+
+    def test__create_target(self):
+        mock_rest = self.mock_object(as13000_driver.RestAPIExecutor,
+                                     'send_rest_api',
+                                     mock.Mock())
+        target_name = 'fake_name'
+        target_node = 'fake_node'
+        method = 'block/target'
+        params = {'name': target_name, 'nodeName': target_node}
+        request_type = 'post'
+        self.as13000_san._create_target(target_name, target_node)
+        mock_rest.assert_called_once_with(method=method,
+                                          params=params,
+                                          request_type=request_type)
+
+    def test__delete_target(self):
+        mock_rest = self.mock_object(as13000_driver.RestAPIExecutor,
+                                     'send_rest_api',
+                                     mock.Mock())
+        target_name = 'fake_name'
+        method = 'block/target?name=%s' % target_name
+        request_type = 'delete'
+        self.as13000_san._delete_target(target_name)
+        mock_rest.assert_called_once_with(method=method,
+                                          request_type=request_type)
+
+    def test__add_chap_to_target(self):
+        mock_rest = self.mock_object(as13000_driver.RestAPIExecutor,
+                                     'send_rest_api',
+                                     mock.Mock())
+        target_name = 'fake_name'
+        chap_username = 'fake_user'
+        chap_password = 'fake_pass'
+        self.as13000_san._add_chap_to_target(target_name,
+                                             chap_username,
+                                             chap_password)
+
+        method = 'block/chap/bond'
+        params = {'target': target_name,
+                  'user': chap_username,
+                  'password': chap_password}
+        request_type = 'post'
+        mock_rest.assert_called_once_with(method=method,
+                                          params=params,
+                                          request_type=request_type)
+
+    def test__add_host_to_target(self):
+        mock_rest = self.mock_object(as13000_driver.RestAPIExecutor,
+                                     'send_rest_api',
+                                     mock.Mock())
+        target_name = 'fake_name'
+        host_ip = 'fake_ip'
+        method = 'block/host'
+        params = {'name': target_name, 'hostIp': host_ip}
+        request_type = 'post'
+        self.as13000_san._add_host_to_target(host_ip, target_name)
+        mock_rest.assert_called_once_with(method=method,
+                                          params=params,
+                                          request_type=request_type)
+
+    def test__add_lun_to_target(self):
+        volume = fake_volume.fake_volume_obj(self._ctxt, host='fakehost')
+        mock_eh = self.mock_object(volume_utils,
+                                   'extract_host',
+                                   mock.Mock(return_value='fake_pool'))
+        mock_tnd = self.mock_object(self.as13000_san,
+                                    '_trans_name_down',
+                                    mock.Mock(return_value='fake_name'))
+        mock_rest = self.mock_object(as13000_driver.RestAPIExecutor,
+                                     'send_rest_api',
+                                     mock.Mock())
+
+        target_name = 'fake_target'
+        self.as13000_san._add_lun_to_target(target_name, volume)
+        method = 'block/lun'
+        params = {'name': target_name,
+                  'pool': 'fake_pool',
+                  'lvm': 'fake_name'}
+        request_type = 'post'
+        mock_eh.assert_called_once_with(volume.host, level='pool')
+        mock_tnd.assert_called_once_with(volume.name)
+        mock_rest.assert_called_once_with(method=method,
+                                          params=params,
+                                          request_type=request_type)
+
+    def test__delete_lun_from_target(self):
+        mock_rest = self.mock_object(as13000_driver.RestAPIExecutor,
+                                     'send_rest_api',
+                                     mock.Mock())
+        target_name = 'fake_target'
+        lun_id = 'fake_id'
+        self.as13000_san._delete_lun_from_target(target_name, lun_id)
+        method = 'block/lun?name=%s&id=%s&force=1' % (target_name, lun_id)
+        request_type = 'delete'
+        mock_rest.assert_called_once_with(method=method,
+                                          request_type=request_type)
+
+    def test__get_lun_list(self):
+        target_name = 'fake_name'
+        lun_list = ['lun_1', 'lun_2']
+        mock_rest = self.mock_object(as13000_driver.RestAPIExecutor,
+                                     'send_rest_api',
+                                     mock.Mock(return_value=lun_list))
+        lun_result = self.as13000_san._get_lun_list(target_name)
+        self.assertEqual(lun_list, lun_result)
+        method = 'block/lun?name=%s' % target_name
+        request_type = 'get'
+        mock_rest.assert_called_once_with(method=method,
+                                          request_type=request_type)
+
+    @ddt.data(True, False)
+    def test__check_volume(self, exist):
+        volume = fake_volume.fake_volume_obj(self._ctxt, host='fakehost')
+        mock_eh = self.mock_object(volume_utils,
+                                   'extract_host',
+                                   mock.Mock(return_value='fake_pool'))
+        mock_tnd = self.mock_object(self.as13000_san,
+                                    '_trans_name_down',
+                                    mock.Mock(return_value='fake_name'))
+        if exist:
+            mock_gv = self.mock_object(self.as13000_san, '_get_volumes', mock.Mock(
+                return_value=[{'name': 'fake_name'}, {'name': 'fake_name2'}]))
+        else:
+            mock_gv = self.mock_object(self.as13000_san, '_get_volumes', mock.Mock(
+                return_value=[{'name': 'fake_name2'}, {'name': 'fake_name3'}]))
+        expect = self.as13000_san._check_volume(volume)
+        self.assertEqual(exist, expect)
+        mock_eh.assert_called_once_with(volume.host, 'pool')
+        mock_tnd.assert_called_once_with(volume.name)
+        if exist:
+            mock_gv.assert_called_once_with('fake_pool')
+        else:
+            mock_gv.assert_called()
+
+    def test__get_volumes(self):
+        volumes = [{'name': 'fake_name1'},
+                   {'name': 'fake_name2'},
+                   {'name': 'fake_name3'}]
+        pool = 'fake_pool'
+        mock_rest = self.mock_object(as13000_driver.RestAPIExecutor,
+                                     'send_rest_api',
+                                     mock.Mock(return_value=volumes))
+        result = self.as13000_san._get_volumes(pool)
+        method = 'block/lvm?pool=%s' % pool
+        request_type = 'get'
+        self.assertEqual(volumes, result)
+        mock_rest.assert_called_once_with(method=method,
+                                          request_type=request_type)
+
+    def test__get_cluster_status(self):
+        method = 'cluster/node'
+        request_type = 'get'
+        cluster = 'fake_cluster'
+        mock_rest = self.mock_object(as13000_driver.RestAPIExecutor,
+                                     'send_rest_api',
+                                     mock.Mock(return_value=cluster))
+        result = self.as13000_san._get_cluster_status()
+        self.assertEqual(cluster, result)
+        mock_rest.assert_called_once_with(method=method,
+                                          request_type=request_type)
+
+    @ddt.data(True, False)
+    def test__get_lun_id(self, lun_exist):
+        volume = fake_volume.fake_volume_obj(self._ctxt, host='fakehost')
+        if lun_exist:
+            lun_list = [{'id': '01', 'mappingLvm': r'fake_pool/fake_volume1'},
+                        {'id': '02', 'mappingLvm': r'fake_pool/fake_volume2'}]
+        else:
+            lun_list = [{'id': '01', 'mappingLvm': r'fake_pool/fake_volume1'},
+                        {'id': '02', 'mappingLvm': r'fake_pool/fake_volume0'}]
+
+        mock_eh = self.mock_object(volume_utils,
+                                   'extract_host',
+                                   mock.Mock(return_value='fake_pool'))
+        mock_tnd = self.mock_object(self.as13000_san,
+                                    '_trans_name_down',
+                                    mock.Mock(return_value='fake_volume2'))
+        mock_gll = self.mock_object(self.as13000_san, '_get_lun_list',
+                                    mock.Mock(return_value=lun_list))
+
+        lun_id = self.as13000_san._get_lun_id(volume, 'fake_target')
+        if lun_exist:
+            self.assertEqual('02', lun_id)
+        else:
+            self.assertEqual(None, lun_id)
+
+        mock_eh.assert_called_once_with(volume.host, level='pool')
+        mock_tnd.assert_called_once_with(volume.name)
+        mock_gll.assert_called_once_with('fake_target')
+
+    def test__trans_name_down(self):
+        fake_name = 'test-abcd-1234_1234-234'
+        expect = 'test_abcd_1234_1234_234'
+        result = self.as13000_san._trans_name_down(fake_name)
+        self.assertEqual(expect, result)
+
+    @ddt.data('50000000', '500000k', '50mb', '50G', '50TB')
+    def test__unit_convert(self, capacity):
+        trans = {'50000000': (50000000 / 1024 ** 3),
+                 '500000k': 500000 / (1024 ** 2),
+                 '50mb': 50 / 1024,
+                 '50G': 50,
+                 '50TB': 50 * 1024}
+        expect = trans[capacity]
+        result = self.as13000_san._unit_convert(capacity)
+        self.assertEqual(expect, result)
